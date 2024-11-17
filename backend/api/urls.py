@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView,TokenRefreshView
 from .views import PostViewSet,register_user,AddCommentView,ToggleLikeView
-from .views import ReplyView,ToggleLikeCommentView, ProfileView,UserProfileUpdateView
+from .views import ReplyView,ToggleLikeCommentView, ProfileView,UserProfileUpdateView,ChatRoomListCreateView,MessageListCreateView
 
 router = DefaultRouter()
 router.register(r'posts', PostViewSet)
@@ -16,6 +16,8 @@ urlpatterns = [
     path('comments/<int:comment_id>/reply/', ReplyView.as_view(), name='add-reply'),
     path('comments/<int:comment_id>/like/', ToggleLikeCommentView.as_view(), name='toggle-like-comment'),
     path('profile/<str:username>/', ProfileView.as_view(), name='user-profile'),
+    path('chat/rooms/', ChatRoomListCreateView.as_view(), name='chat_room_list_create'),
+    path('chat/rooms/<int:room_id>/messages/', MessageListCreateView.as_view(), name='message_list_create'),
     path('', include(router.urls)),
 ]
 

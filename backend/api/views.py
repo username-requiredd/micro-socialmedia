@@ -1,4 +1,4 @@
-from .models import Post,Comment,PostImage,UserProfile
+from .models import Post,Comment,PostImage,UserProfile,ChatRoom,Message
 from .serializers import PostSerializer
 from rest_framework.permissions import IsAuthenticated,AllowAny,IsAuthenticatedOrReadOnly
 from django.contrib.auth.models import User
@@ -7,11 +7,15 @@ from rest_framework.response import Response
 from .serializers import UserRegistrationSerializer,PostSerializer,CommentSerializer,UserProfileSerializer
 from rest_framework import status,generics,viewsets
 from rest_framework.generics import CreateAPIView,DestroyAPIView,UpdateAPIView,RetrieveAPIView
-from .serializers import ProfileSerializer,PostSerializer,PostViewSerializer,PostUpdateSerializer,PostImageSerializer,PostCreateSerializer
+from .serializers import ProfileSerializer,PostSerializer,\
+PostViewSerializer,PostUpdateSerializer,\
+PostImageSerializer,PostCreateSerializer,ChatRoomSerializer, MessageSerializer
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import DestroyAPIView
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
+
 
 
 @api_view(['POST'])
@@ -124,6 +128,7 @@ class ReplyView(APIView):
 
 
 class ToggleLikeCommentView(APIView):
+    permission_classes = [IsAuthenticated]
     def post(self, request, comment_id):
         comment = get_object_or_404(Comment, id=comment_id)
         user = request.user
@@ -133,3 +138,37 @@ class ToggleLikeCommentView(APIView):
         else:
             comment.liked_comments.add(user)
             return Response({"message": "You liked this comment.", "like_count": comment.like_count()}, status=status.HTTP_200_OK)
+
+
+
+class ChatRoomListCreateView(generics.ListCreateAPIView):
+    serializer_class = ChatRoomSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ChatRoom.objects.filter(participants=self.request.user)
+
+    def perform_create(self, serializer):
+        participants = serializer.validated_data.get('participants')
+        if len(participants) != 2:
+            raise ValidationError("Direct messaging requires exactly two participants.")
+        existing_room = ChatRoom.objects.filter(participants__in=participants).distinct()
+        if existing_room.count() > 0 and all(user in existing_room.first().participants.all() for user in participants):
+            raise ValidationError("A chat room between these participants already exists.")
+        room = serializer.save()
+        room.participants.add(*participants)
+
+
+class MessageListCreateView(generics.ListCreateAPIView):
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        room = get_object_or_404(ChatRoom, id=self.kwargs['room_id'])
+        if self.request.user not in room.participants.all():
+            raise PermissionDenied("You are not authorized to view or send messages in this chat room.")
+        return room.messages.all()
+    def perform_create(self, serializer):
+        room = get_object_or_404(ChatRoom, id=self.kwargs['room_id'])
+        if self.request.user not in room.participants.all():
+            raise PermissionDenied("You are not authorized to send messages to this chat room.")
+        serializer.save(sender=self.request.user, room=room)

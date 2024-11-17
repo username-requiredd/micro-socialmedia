@@ -1,7 +1,34 @@
 from rest_framework import serializers
-from .models import Post,Comment,PostImage
+from .models import Post,Comment,PostImage,ChatRoom,Message
 from django.contrib.auth.models import User
 from .models import UserProfile
+from django.shortcuts import get_object_or_404
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = ['id', 'room', 'sender', 'content', 'timestamp']
+        read_only_fields = ['sender', 'room']
+
+    def create(self, validated_data):
+        room_id = self.context['view'].kwargs['room_id']
+        room = get_object_or_404(ChatRoom, id=room_id)
+        validated_data['sender'] = self.context['request'].user
+        validated_data['room'] = room
+        return super().create(validated_data)
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    participants = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), many=True)
+
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'participants', 'created_at']
+
+    def validate_participants(self, value):
+        if len(value) != 2:
+            raise serializers.ValidationError("Direct messaging requires exactly two participants.")
+        return value
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -101,9 +128,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         )
         UserProfile.objects.create(user=user)
         return user
-
-
-
 
 class PostUpdateSerializer(serializers.ModelSerializer):
     class Meta:

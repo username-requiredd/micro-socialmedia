@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils.timezone import now
+
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -22,7 +24,7 @@ class UserProfile(models.Model):
         help_text="Where did you study?"
     )
 
-    # Current city of residence
+
     city = models.CharField(
         verbose_name="City of Residence",
         max_length=100,
@@ -105,3 +107,20 @@ class Comment(models.Model):
 
     def like_count(self):
         return self.liked_comments.count()
+
+
+class ChatRoom(models.Model):
+    participants = models.ManyToManyField(User, related_name='chat_rooms')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Room {self.id} - Participants: {', '.join([user.username for user in self.participants.all()])}"
+
+class Message(models.Model):
+    room = models.ForeignKey(ChatRoom, related_name='messages', on_delete=models.CASCADE)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    timestamp = models.DateTimeField(default=now)
+
+    def __str__(self):
+        return f"Message by {self.sender.username} in Room {self.room.id} at {self.timestamp}"
